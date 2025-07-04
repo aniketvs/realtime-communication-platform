@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+  <title>Socket.IO Chat Client</title>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 30px;
+    }
+
+    #chatContainer {
+      width: 400px;
+      max-height: 500px;
+      border: 1px solid #ccc;
+      padding: 10px;
+      overflow-y: auto;
+      margin-bottom: 10px;
+    }
+
+    .message {
+      padding: 8px 12px;
+      margin: 6px 0;
+      border-radius: 10px;
+      max-width: 70%;
+      clear: both;
+    }
+
+    .sent {
+      background-color: #dcf8c6;
+      float: right;
+      text-align: right;
+    }
+
+    .received {
+      background-color: #f1f0f0;
+      float: left;
+      text-align: left;
+    }
+
+    #messageInput {
+      width: 300px;
+      padding: 8px;
+    }
+
+    button {
+      padding: 8px 12px;
+    }
+
+    .div-1 {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 20px;
+      width: 420px;
+    }
+  </style>
+</head>
+
+<body>
+  <div class="div-1">
+    <h2>💬 Chat</h2>
+    <h2 id="callBtn">📞 Call</h2>
+  </div>
+  <div id="call_ringing">
+
+  </div>
+  <div id="call_incoming">
+
+  </div>
+
+  <div id="chatContainer"></div>
+  <div id="typingStatus" style="font-style: italic; color: gray; height: 20px;"></div>
+
+  <input type="text" id="messageInput" placeholder="Enter your message" />
+  <button onclick="sendMessage()">Send</button>
+
+  <script>
+    const token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VyT2JqIjp7ImlkIjoyLCJuYW1lIjoiVXNlciAxIiwiZW1haWwiOiJhbmlrZXQxQDEyM2dtYWlsLmNvbSIsIm51bWJlciI6Ijk5OTk5ODk5NzYiLCJpc192ZXJpZmllZCI6dHJ1ZSwiY3JlYXRlZEF0IjoiMjAyNS0wNi0yNlQyMDoxNDo0NC4wMDBaIiwidXBkYXRlZEF0IjoiMjAyNS0wNi0yNlQyMDoxNToxMy4wMDBaIn0sImlhdCI6MTc1MDk2ODkyNSwiZXhwIjoxNzc2MTY4OTI1fQ.tV4GdmAY6rw8TEYWv1mXDmwtjeANZ3-_UQ52UWophDs";
+    const currentUserId = 2;
+    const otherUserId = 1;
+    const otherUserNumber = "9999999989";
+    let peerConnection;
+    let localStream;
+    let remoteStream;
+    let IP="192.168.1.3";
+    let domain='https://magic-donna-retention-colour.trycloudflare.com';
+    const chatId = `${Math.min(currentUserId, otherUserId)}_${Math.max(currentUserId, otherUserId)}`;
+    let pingInterval = null;
+    // const socket = io(`http://${IP}:3000`, {
+    //   auth: { token }
+    // });
+const domain2 = "https://soc-post-adopt-addressing.trycloudflare.com";
+
+const socket = io(domain2, {
+  path: "/chat/socket.io",          // ✅ MUST match what backend is mounted on
+  auth: { token },
+  transports: ["websocket"],        // ✅ Optional but preferred
+});
+
+
+    socket.on("connect", () => {
+      console.log("✅ Connected:", socket.id);
+      fetchChatMessages();
+      pingInterval = setInterval(() => {
+        socket.emit('ping');
+      }, 60_000);
+    });
+
+    socket.on("disconnect", () => {
+      console.log("❌ Disconnected");
+      clearInterval(pingInterval);
+    });
+
+    document.getElementById("messageInput").addEventListener("input", () => {
+      socket.emit("typing", {
+        toUserId: otherUserId,
+        toUserNumber: otherUserNumber
+      });
+    });
+
+    document.getElementById('callBtn').addEventListener('click', () => {
+      socket.emit('call_request', {
+        toUserId: otherUserId,
+        toUserNumber: otherUserNumber
+      });
+      console.log("📞 Call request sent to user:", otherUserId);
+    })
+
+
+    socket.on("user_typing", () => {
+      const typingStatus = document.getElementById("typingStatus");
+      typingStatus.innerText = `typing...`;
+      clearTimeout(window.typingTimeout);
+      window.typingTimeout = setTimeout(() => {
+        typingStatus.innerText = '';
+      }, 300);
+    });
+
+    socket.on("receive_message", (data) => {
+      console.log("📥 Received:", data);
+      const isSent = data.fromUserId === currentUserId;
+      appendMessage(data.message, isSent);
+    });
+
+    function sendMessage() {
+      const input = document.getElementById("messageInput");
+      const message = input.value.trim();
+      if (message) {
+        socket.emit("send_message", {
+          toUserId: otherUserId,
+          toUserNumber: otherUserNumber,
+          message
+        });
+        appendMessage(message, true);
+        input.value = '';
+      }
+    }
+
+    function appendMessage(text, isSent) {
+      const chatContainer = document.getElementById("chatContainer");
+      const msgDiv = document.createElement("div");
+      msgDiv.classList.add("message", isSent ? "sent" : "received");
+      msgDiv.innerText = text;
+      chatContainer.appendChild(msgDiv);
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    function fetchChatMessages() {
+      fetch(`${domain}/data/api/v1/chat/${chatId}/messages`  //`http://${IP}:3005/api/v1/chat/${chatId}/messages`
+
+      )
+        .then(res => res.json())
+        .then(response => {
+          const messages = response.data || [];
+          messages.sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+          messages.forEach(msg => {
+            const isSent = msg.fromUserId === currentUserId;
+            appendMessage(msg.message, isSent);
+          });
+        })
+        .catch(err => console.error("❌ Fetch failed:", err));
+    }
+
+    socket.on('call_incoming', (data) => {
+      console.log("📞 Call ringing from user:", data.fromUserId);
+      const callRingingDiv = document.getElementById('call_incoming');
+      callRingingDiv.innerHTML = `<p>${data.message}</p>
+                                  <button onclick="answerCall()">Answer</button>
+                                  <button onclick="rejectCall()">Reject</button>`;
+    });
+
+    function answerCall() {
+      console.log("📞 Call answered");
+      socket.emit('accept_call', {
+        toUserId: otherUserId,
+        toUserNumber: otherUserNumber
+      });
+
+    }
+    function rejectCall() {
+      console.log("📞 Call rejected");
+      socket.emit('reject_call', {
+        toUserId: otherUserId,
+        toUserNumber: otherUserNumber
+      });
+    }
+
+    socket.on('call_ringing', (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>Ringing</p>
+                                  <button onclick="endCall()">End Call</button>`;
+    })
+    function endCall() {
+      socket.emit('call_end', {
+        toUserId: otherUserId,
+        toUserNumber: otherUserNumber
+      });
+    }
+    socket.on('callee_not_online', (data) => {
+      console.log("❌ User not online:", data);
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<div class="message received">User is not online</div>`;
+    });
+    socket.on('callee_busy', (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>${data.message}</p>
+                                  `;
+    })
+
+    socket.on('call_timeout', (data) => {
+      console.log("📞 Call timeout:", data);
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<div class="message received">Call timed out</div>`;
+    });
+    socket.on('call_ended', (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>${data.message}</p>`;
+    })
+    socket.on('already_accepted', (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>${data.message}</p>`;
+    })
+    socket.on('call_rejected', (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>${data.message}</p>`;
+    })
+    socket.on('call_cancelled', (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>${data.message}</p>`;
+    })
+    socket.on('call_accepted', async (data) => {
+      const callIncomingDiv = document.getElementById('call_incoming');
+      callIncomingDiv.innerHTML = `<p>${data.message}</p>`;
+    })
+
+    socket.on('webrtc_offer', async (data) => {
+      console.log("📥 Received WebRTC offer");
+      await startLocalStream();
+      createPeerConnection();
+
+      await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
+      const answer = await peerConnection.createAnswer();
+      await peerConnection.setLocalDescription(answer);
+      console.log('WebRTC connection established');
+      socket.emit('webrtc_answer', {
+        answer,
+        socketId: data.from,
+        requesterId: data.userId
+      });
+    });
+
+
+socket.on('ice_candidate', async (data) => {
+  try {
+    console.log("📥 Received ICE candidate from ");
+    
+    // Ensure peerConnection is not undefined
+    if (!peerConnection) {
+      console.log("❌ peerConnection is undefined. Initializing peerConnection.");
+    // Create peer connection if it's not already created
+    }
+
+    // Now add the received ICE candidate to the peerConnection
+    if (peerConnection) {
+      console.log("✅ peerConnect is ", data?.candidate);
+      await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
+    } else {
+      console.error("❌ peerConnection still undefined. Cannot add ICE candidate.");
+    }
+  } catch (err) {
+    console.error("❌ Error adding ICE candidate:", err);
+  }
+});
+
+
+    function createPeerConnection() {
+      peerConnection = new RTCPeerConnection({
+        iceServers: [{ urls: 'stun:stun.l.google.com:19302' }]
+      });
+
+      // Handle remote track received (unchanged)
+      peerConnection.ontrack = (event) => {
+        if (!remoteStream) {
+          remoteStream = new MediaStream();
+          const remoteAudio = document.createElement('audio');
+          remoteAudio.srcObject = remoteStream;
+          remoteAudio.autoplay = true;
+          remoteAudio.controls = true;
+          remoteAudio.style.marginTop = "10px";
+          document.body.appendChild(remoteAudio);
+          console.log('📡 Remote stream received');
+        }
+        remoteStream.addTrack(event.track);
+      };
+
+      // Send local tracks (unchanged)
+      localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+      });
+
+      peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+          console.log("📤 Sending ICE candidate to peer");
+          socket.emit('ice_candidate', {
+            candidate: event.candidate,
+            toUserId: otherUserId,
+            toUserNumber: otherUserNumber
+          });
+        }
+      };
+      // ICE candidate handling (this should be outside of createPeerConnection)
+      peerConnection.onconnectionstatechange = () => {
+        if (peerConnection.connectionState === 'connected') {
+          console.log("✅ WebRTC Connected");
+          socket.emit('WEBRTC_CONNECTED', {
+            callerId: currentUserId,
+            calleeId: otherUserId,
+          });
+        }
+      };
+    }
+
+    // 6️⃣ Start microphone stream (no video)
+    async function startLocalStream() {
+      try {
+        localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+
+        const localAudio = document.createElement('audio');
+        localAudio.srcObject = localStream;
+        localAudio.autoplay = true;
+        localAudio.muted = true; // Prevent echo
+        localAudio.style.display = "none";
+        document.body.appendChild(localAudio);
+
+        console.log("🎤 Microphone access granted");
+      } catch (err) {
+        console.error("❌ Microphone access error:", err);
+      }
+    }
+  </script>
+</body>
+
+</html>

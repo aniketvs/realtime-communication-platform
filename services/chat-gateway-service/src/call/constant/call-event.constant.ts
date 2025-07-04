@@ -1,0 +1,23 @@
+export const CALL_EVENTS = {
+  REQUEST: 'call_request',
+  RINGING: 'call_ringing',
+  INCOMING: 'call_incoming',
+  ENDED: 'call_ended',
+  BUSY: 'callee_busy',
+  NOT_ONLINE: 'callee_not_online',
+  INVALID_CALL: 'invalid_call',
+  ALREADY_IN_CALL: 'caller_already_in_call',
+  CALL_TIMEOUT: 'call_timeout',
+  CALL_END: 'call_end',
+  ACCEPT_CALL:"accept_call",
+  CALL_ACCEPTED: 'call_accepted',
+  ALREADY_ACCEPTED:"already_accepted",
+  REJECT_CALL:'reject_call',
+  CALL_REJECTED: 'call_rejected',
+  CALL_CANCELLED: 'call_cancelled',
+  CALL_ONGOING: 'call_ongoing',
+  WEBRTC_OFFER:'webrtc_offer',
+  WEBRTC_ANSWER:'webrtc_answer',
+  WEBRTC_CONNECTED:'webrtc_connected',
+  ICE_CANDIDATE:"ice_candidate"
+};
