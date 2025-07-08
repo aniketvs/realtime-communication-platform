@@ -118,8 +118,3 @@ This project is MIT licensed.
 * 🔗 [LinkedIn](https://linkedin.com/in/sharma-aniket-vinod)
 
 ```
-
----
-
-Would you like me to auto-generate a diagram for service interactions or save this file locally as `README.md`?
-```
